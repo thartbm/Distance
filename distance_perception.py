@@ -163,9 +163,15 @@ def doDistanceTask(ID=None, side=None):
     point_4 = visual.Circle(cfg['hw']['win'], lineColor = None)
 
 
-    bs_fillColor = {'LH':col_left, 'RH':col_right}[side]
-    blindspot = visual.Circle(cfg['hw']['win'], pos = spot_cart, fillColor=bs_fillColor, lineColor = None, size = marker_size)
-    blindspot.autoDraw = True 
+    blindspot = visual.Circle( win       = cfg['hw']['win'], 
+                               pos       = spot_cart, 
+                               fillColor = {'LH':col_left, 'RH':col_right}[side], 
+                               lineColor = None, 
+                               size      = marker_size)
+    # blindspot.autoDraw = True 
+
+    # blindspot marker should not be on autodraw (no stimulus should ever be on autodraw, that's a recipe for mistakes)
+
 
     ## prepare trials
     if side == 'LH':
@@ -220,20 +226,21 @@ def doDistanceTask(ID=None, side=None):
 
     trial_clock = core.Clock()
 
-    foil_type = [1, -1] * 4
-    eye = ['left', 'left', 'right', 'right'] * 2
-    pos_arrays = [pos_array_bsa[:]] * 4 + [pos_array_out[:]] * 4 # why times 4? this creates 16 positions, shared by 8 staircases... i.e. only the first 8 are used, and these are blind spot area only positions?
-    # maybe I'm wrong... let's test
-
     intervals = [3.5, 3, 2.5, 2, 1.5, 1, .5, 0, -.5, -1, -1.5, -2, -2.5, -3, -3.5]
-    position = [[]] * 8
-    trial_stair = [0] * 8
-    revs = [0] * 8
-    direction = [1] * 8
-    cur_int = [0] * 8
-    reversal = [False] * 8
-    resps = [[]] * 8
-    stairs_ongoing = [True] * 8
+
+    foil_type  = [1, -1]                                      * 4
+    eye        = ['left', 'left', 'right', 'right']           * 2
+    pos_arrays = [pos_array_bsa[:]] * 4 + [pos_array_out[:]]  * 4 
+    # does this do what it's supposed to? maybe I'm wrong... let's test
+
+    position       = [[]]    * 8
+    trial_stair    = [0]     * 8
+    revs           = [0]     * 8
+    direction      = [1]     * 8
+    cur_int        = [0]     * 8
+    reversal       = [False] * 8
+    resps          = [[]]    * 8
+    stairs_ongoing = [True]  * 8
 
     trial = 1
     abort = False
@@ -301,39 +308,38 @@ def doDistanceTask(ID=None, side=None):
         ## pre trial fixation
         trial_clock.reset()
         #!!# setup / start recording
-        gaze_out = False
-        while True and not abort:
-            # Start detecting time
-            t = trial_clock.getTime()
-            
-            #!!# get position at each t
-            #!!# every 100 ms, check that positions were on average <2 dva from center
-            #!!# after 5 consecutive intervals (500 ms) with correct fixation, break to start trial
-            #!!# for now we break automatically:
-            if t > .5:
-                break
-            #!!#
+        # gaze_out = False
 
-            cfg['hw']['fusion']['hi'].resetProperties()
-            cfg['hw']['fusion']['lo'].resetProperties()
-            fixation.draw()
-            cfg['hw']['win'].flip()
+        cfg['hw']['tracker'].comment('start trial %d'%(trial))
 
-            k = event.getKeys(['q'])
-            if k:
-                if 'q' in k:
-                    abort = True
-                    break
-            
-            # set up auto recalibrate after 5s
-            if t > 5:
-                recalibrate = True
-                gaze_out = True
-                break
+        cfg['hw']['tracker'].waitForFixation()
+
+        # this looks like it either never stops
+        # or does only 1 frame
+        # either way it's pointless
+
+        # while True and not abort:
+        #     # Start detecting time
+        #     t = trial_clock.getTime()
+
+
+        #     cfg['hw']['fusion']['hi'].resetProperties()
+        #     cfg['hw']['fusion']['lo'].resetProperties()
+        #     fixation.draw()
+        #     cfg['hw']['win'].flip()
+
+        #     k = event.getKeys(['q'])
+        #     if k:
+        #         if 'q' in k:
+        #             abort = True
+        #             break
 
         #!!# stop recording/clear events
         
-        if not gaze_out:
+        # actually... there are parts of the trial where gaze can be out of fixation: after stimuli have disappeared:
+
+        
+        if cfg['hw']['tracker'].gazeInFixationWindow():
             ## trial
             
             #!!# start recording
@@ -341,6 +347,7 @@ def doDistanceTask(ID=None, side=None):
             cfg['hw']['fusion']['hi'].draw()
             cfg['hw']['fusion']['lo'].draw()
             fixation.draw()
+
             cfg['hw']['win'].flip()
             trial_clock.reset()
             gaze_in_region = True
