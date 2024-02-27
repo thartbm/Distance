@@ -76,6 +76,12 @@ def doDistanceTask(ID=None, side=None):
     spot = cart2pol(spot_cart[0], spot_cart[1])
     spot_size = eval(bs_param[3])
 
+    # scale blindspot marker
+    # we want half the surface? maybe a little more?
+    bs_scale = 0.75
+    bsf = bs_scale**0.5
+    marker_size = [spot_size[0] * bsf, spot_size[1] * bsf]
+    
     '''
     distance of reference between dots (target)
     => width of blindspot + 2 (dot width, padding) + 2 (to account for a max jitter of 1 on either side)
@@ -158,7 +164,7 @@ def doDistanceTask(ID=None, side=None):
 
 
     bs_fillColor = {'LH':col_left, 'RH':col_right}[side]
-    blindspot = visual.Circle(cfg['hw']['win'], pos = spot_cart, fillColor=bs_fillColor, lineColor = None, size = spot_size)
+    blindspot = visual.Circle(cfg['hw']['win'], pos = spot_cart, fillColor=bs_fillColor, lineColor = None, size = marker_size)
     blindspot.autoDraw = True 
 
     ## prepare trials
@@ -216,7 +222,8 @@ def doDistanceTask(ID=None, side=None):
 
     foil_type = [1, -1] * 4
     eye = ['left', 'left', 'right', 'right'] * 2
-    pos_arrays = [pos_array_bsa[:]] * 4 + [pos_array_out[:]] * 4 # why times 4?
+    pos_arrays = [pos_array_bsa[:]] * 4 + [pos_array_out[:]] * 4 # why times 4? this creates 16 positions, shared by 8 staircases... i.e. only the first 8 are used, and these are blind spot area only positions?
+    # maybe I'm wrong... let's test
 
     intervals = [3.5, 3, 2.5, 2, 1.5, 1, .5, 0, -.5, -1, -1.5, -2, -2.5, -3, -3.5]
     position = [[]] * 8
@@ -249,35 +256,44 @@ def doDistanceTask(ID=None, side=None):
         dif = intervals[cur_int[which_stair]] * foil_type[which_stair]
         which_first = random.choice(['Targ', 'Foil'])
 
+        target_pos  = positions[pos[0]]
+        foil_pos    = positions[pos[1]]
+
         if which_first == 'Targ':
-            point_1.pos = pol2cart(positions[pos[0]][0][0], positions[pos[0]][0][1]       + shift[0])
-            point_2.pos = pol2cart(positions[pos[0]][1][0], positions[pos[0]][1][1]       + shift[0])
-            point_3.pos = pol2cart(positions[pos[1]][0][0], positions[pos[1]][0][1]       + shift[1])
-            point_4.pos = pol2cart(positions[pos[1]][1][0], positions[pos[1]][1][1] + dif + shift[1])
+            point_1.pos = pol2cart(target_pos[0][0], target_pos[0][1]       + shift[0])
+            point_2.pos = pol2cart(target_pos[1][0], target_pos[1][1]       + shift[0])
+            point_3.pos = pol2cart(foil_pos[0][0],   foil_pos[0][1]         + shift[1])
+            point_4.pos = pol2cart(foil_pos[1][0],   foil_pos[1][1]   + dif + shift[1])
 
             if eye[which_stair] == 'left':
                 point_1.fillColor = col_left
                 point_2.fillColor = col_left
+                point_3.fillColor = col_left
+                point_4.fillColor = col_left
             else:
-                point_1.fillColor = col_righ
-                point_2.fillColor = col_righ
-            point_3.fillColor = col_both
-            point_4.fillColor = col_both
+                point_1.fillColor = col_right
+                point_2.fillColor = col_right
+                point_3.fillColor = col_right
+                point_4.fillColor = col_right
 
         else:
-            point_3.pos = pol2cart(positions[pos[0]][0][0], positions[pos[0]][0][1]       + shift[0])
-            point_4.pos = pol2cart(positions[pos[0]][1][0], positions[pos[0]][1][1]       + shift[0])
-            point_1.pos = pol2cart(positions[pos[1]][0][0], positions[pos[1]][0][1]       + shift[1])
-            point_2.pos = pol2cart(positions[pos[1]][1][0], positions[pos[1]][1][1] + dif + shift[1])
+            point_3.pos = pol2cart(target_pos[0][0], target_pos[0][1]       + shift[0])
+            point_4.pos = pol2cart(target_pos[1][0], target_pos[1][1]       + shift[0])
+            point_1.pos = pol2cart(foil_pos[0][0],   foil_pos[0][1]         + shift[1])
+            point_2.pos = pol2cart(foil_pos[1][0],   foil_pos[1][1]   + dif + shift[1])
+
 
             if eye[which_stair] == 'left':
                 point_3.fillColor = col_left
                 point_4.fillColor = col_left
+                point_1.fillColor = col_left
+                point_2.fillColor = col_left
             else:
-                point_3.fillColor = col_righ
-                point_4.fillColor = col_righ
-            point_1.fillColor = col_both
-            point_2.fillColor = col_both
+                point_3.fillColor = col_right
+                point_4.fillColor = col_right
+                point_1.fillColor = col_right
+                point_2.fillColor = col_right
+
         
         cfg['hw']['fusion']['hi'].resetProperties()
         cfg['hw']['fusion']['lo'].resetProperties()
