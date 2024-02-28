@@ -62,9 +62,11 @@ def doDistanceTask(ID=None, side=None):
     respFile = open(data_path + filename + str(x) + '.txt','w')
 
     respFile.write(''.join(map(str, ["Start: \t" + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + "\n"])))
-    respFile.write("Resp\tTarg_loc\tFoil_loc\tTarg_len\tDifference\tWhich_first\tTarg_chosen\tReversal\tFoil_type\tEye\tGaze_out\tStair\tTrial\n")
+    # respFile.write("Resp\tTarg_loc\tFoil_loc\tTarg_len\tDifference\tWhich_first\tTarg_chosen\tReversal\tFoil_type\tEye\tGaze_out\tStair\tTrial\n")
+    respFile.write("Resp\tTarg_loc\tFoil_loc\tTarg_len\tDifference\tWhich_first\tTarg_chosen\tReversal\tEye\tGaze_out\tStair\tTrial\n")
     print(datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"))
-    print("Resp", "Targ_loc", "Foil_loc", "Targ_len", "Difference", "Which_first", "Targ_chosen", "Reversal", "Foil_type", "Eye", "Gaze_out", "Stair")
+    # print("Resp", "Targ_loc", "Foil_loc", "Targ_len", "Difference", "Which_first", "Targ_chosen", "Reversal", "Foil_type", "Eye", "Gaze_out", "Stair")
+    print("Resp", "Targ_loc", "Foil_loc", "Targ_len", "Difference", "Which_first", "Targ_chosen", "Reversal", "Eye", "Gaze_out", "Stair")
 
     ## blindspot parameters
     bs_file = open(glob("../data/mapping/" + ID + "_" + side + "_blindspot*.txt")[-1],'r')
@@ -105,10 +107,6 @@ def doDistanceTask(ID=None, side=None):
     col_both  = [col_left[0], -1, col_right[2]] # do we even need this?
 
 
-    # ## window & elements
-    # win = visual.Window([1500,800],allowGUI=True, monitor='ExpMon',screen=1, units='pix', viewPos = [0,0], fullscr = True, color= col_back)
-    # win.mouseVisible = False
-
     # this could be smarter (IP address based?) but it doesn't matter:
     if os.sys.platform == 'linux':
         location = 'toronto'
@@ -129,10 +127,8 @@ def doDistanceTask(ID=None, side=None):
     pyg_keyboard = key.KeyStateHandler()
     cfg['hw']['win'].winHandle.push_handlers(pyg_keyboard)
 
-    fixation = visual.ShapeStim(cfg['hw']['win'], vertices = ((0, -2), (0, 2), (0,0), (-2, 0), (2, 0)), lineWidth = 4, units = 'pix', size = (10, 10), closeShape = False, lineColor = 'black')
 
-    # hiFusion = fusionStim(win=win, pos=[0, 0.7], units = 'norm', col = [col_back, col_both])
-    # loFusion = fusionStim(win=win, pos=[0,-0.7], units = 'norm', col = [col_back, col_both])
+    fixation = visual.ShapeStim(cfg['hw']['win'], vertices = ((0, -2), (0, 2), (0,0), (-2, 0), (2, 0)), lineWidth = 4, units = 'pix', size = (10, 10), closeShape = False, lineColor = 'black')
 
     ## instructions
     visual.TextStim(cfg['hw']['win'],'Troughout the experiment you will fixate at a white cross that will be located at the right hand side of the screen.   \
@@ -227,17 +223,18 @@ def doDistanceTask(ID=None, side=None):
     trial_clock = core.Clock()
 
     intervals = [3.5, 3, 2.5, 2, 1.5, 1, .5, 0, -.5, -1, -1.5, -2, -2.5, -3, -3.5]
+    max_int_idx = len(intervals) - 1
 
-    foil_type  = [1, -1]                                      * 4
+    # foil_type  = [1, -1]                                      * 4
+    cur_int    = [0, max_int_idx]                             * 4 # we can do without the foil_type parameter if cur_int can be the minimum (0) OR the maximum...
     eye        = ['left', 'left', 'right', 'right']           * 2
     pos_arrays = [pos_array_bsa[:]] * 4 + [pos_array_out[:]]  * 4 
-    # does this do what it's supposed to? maybe I'm wrong... let's test
 
     position       = [[]]    * 8
     trial_stair    = [0]     * 8
     revs           = [0]     * 8
     direction      = [1]     * 8
-    cur_int        = [0]     * 8
+    # cur_int        = [0]     * 8 # weren't we supposed to start some at the -3.5 interval? now they all start at 3.5... foil_type gets multiplied by this?
     reversal       = [False] * 8
     resps          = [[]]    * 8
     stairs_ongoing = [True]  * 8
@@ -248,6 +245,15 @@ def doDistanceTask(ID=None, side=None):
 
     while any(stairs_ongoing):
 
+        # do a trial
+        fixating = False
+        while not fixating:
+            if cfg['hw']['tracker'].gazeInFixationWindow():
+                fixating = True
+            else:
+                if cfg['hw']['tracker'].calibrate():
+        
+        # good to go:
         increment = True
 
         ## choose staircase
@@ -260,7 +266,7 @@ def doDistanceTask(ID=None, side=None):
         pos = position[which_stair].pop()
 
         shift = random.sample([-1, -.5, 0, .5, .1], 2)
-        dif = intervals[cur_int[which_stair]] * foil_type[which_stair]
+        dif = intervals[cur_int[which_stair]] #* foil_type[which_stair]
         which_first = random.choice(['Targ', 'Foil'])
 
         target_pos  = positions[pos[0]]
@@ -305,161 +311,115 @@ def doDistanceTask(ID=None, side=None):
         cfg['hw']['fusion']['hi'].resetProperties()
         cfg['hw']['fusion']['lo'].resetProperties()
 
-        ## pre trial fixation
-        trial_clock.reset()
-        #!!# setup / start recording
-        # gaze_out = False
-
+        # record trial number:
         cfg['hw']['tracker'].comment('start trial %d'%(trial))
 
+        # pre-trial fixation
         cfg['hw']['tracker'].waitForFixation()
 
-        # this looks like it either never stops
-        # or does only 1 frame
-        # either way it's pointless
+        # new random patterns:
+        cfg['hw']['fusion']['hi'].resetProperties()
+        cfg['hw']['fusion']['lo'].resetProperties()
 
-        # while True and not abort:
-        #     # Start detecting time
-        #     t = trial_clock.getTime()
+        # now we start the clock:
+        trial_clock.reset()
 
+        response     = None
+        recalibrate  = False
 
-        #     cfg['hw']['fusion']['hi'].resetProperties()
-        #     cfg['hw']['fusion']['lo'].resetProperties()
-        #     fixation.draw()
-        #     cfg['hw']['win'].flip()
+        while response == None:
 
-        #     k = event.getKeys(['q'])
-        #     if k:
-        #         if 'q' in k:
-        #             abort = True
-        #             break
+            t = trial_clock.getTime()
 
-        #!!# stop recording/clear events
-        
-        # actually... there are parts of the trial where gaze can be out of fixation: after stimuli have disappeared:
-
-        
-        if cfg['hw']['tracker'].gazeInFixationWindow():
-            ## trial
+            if 0.1 <= trial_clock.getTime() < 0.9:
+                point_1.draw()
+                point_2.draw()
+            if 0.5 <= trial_clock.getTime() < 1.3:
+                blindspot.draw()
+                point_3.draw()
+                point_4.draw()
             
-            #!!# start recording
-            
-            cfg['hw']['fusion']['hi'].draw()
-            cfg['hw']['fusion']['lo'].draw()
-            fixation.draw()
-
-            cfg['hw']['win'].flip()
-            trial_clock.reset()
-            gaze_in_region = True
-        
-            while trial_clock.getTime() < 1.3 and not abort:
-                t = trial_clock.getTime()
-                
-                #!!# get position at each t
-                #!!# if position is invalid or >2 dva, set gaze in region to False
-                #!!# may also record gazes in file here and do stuff like showing gaze position if simulating with mouse
-                
-                if not gaze_in_region:
-                    gaze_out = True
-                    break
-                    
-                cfg['hw']['fusion']['hi'].draw()
-                cfg['hw']['fusion']['lo'].draw()
-                fixation.draw()
-        
-                if .1 <= trial_clock.getTime() < .5:
-                    point_1.draw()
-                    point_2.draw()
-                elif .5 <= trial_clock.getTime() < 0.9:
-                    point_1.draw()
-                    point_2.draw()
-                    point_3.draw()
-                    point_4.draw()
-                elif 0.9 <= trial_clock.getTime() < 1.3:
-                    point_3.draw()
-                    point_4.draw()
-        
-                cfg['hw']['win'].flip()
-                
-                k = event.getKeys(['q'])
-                if k and 'q' in k:
-                    abort = True
-                    break
-                    
-            #!!# stop recording/clear events
-
-        if abort:
-            respFile.write("Run manually ended at " + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + "!")
-            break
-        
-        if not gaze_out:
-        
-            ## response
-            fixation.ori += 45
-            fixation.color = 'black'
-            cfg['hw']['fusion']['hi'].draw()
-            cfg['hw']['fusion']['lo'].draw()
-            fixation.draw()
-            cfg['hw']['win'].flip()
-            
-            k = ['wait']
-            while k[0] not in ['q', 'space', 'left', 'right']:
-                k = event.waitKeys()
-            if k[0] in ['q']:
-                respFile.write("Run manually ended at " + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + "!")
-                break
-            elif k[0] in ['space']:
-                position[which_stair] = position[which_stair] + [pos]
-                increment = False
-                resp = 'abort'
-                targ_chosen = 'abort'
-                reversal = 'abort'
+            if trial_clock.getTime() < 1.3:
+                blindspot.draw()
+                k = event.getKeys(['q','r','space'])
+                if not cfg['hw']['tracker'].gazeInFixationWindow():
+                    response    = 'abort'
+                    # recalibrate = True   # maybe only if this happens a few times in a row? or triggered by experimenter...
             else:
-                resp = 1 if k[0] == 'left' else 2
-                
-            fixation.ori -= 45
+                k = event.getKeys(['q','r','space','left','right'])
+                fixation.ori += 45
             
-        else:
-        
-            ## dealing with auto-aborted trials
-        
-            # auto recalibrate if no initial fixation
-            if recalibrate:
-                # recalibrate = False
-                # visual.TextStim(win,'Calibration...', color = 'black', units = 'deg', pos = (0,-2)).draw()
-                # fixation.draw()
-                # win.flip()
-                # k = event.waitKeys()
-                # if k[0] in ['q']:
-                #     respFile.write("Run manually ended at " + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + "!")
-                #     break
+            cfg['hw']['fusion']['hi'].draw()
+            cfg['hw']['fusion']['lo'].draw()
+            fixation.draw()
 
-                # stoprecording()?
-                cfg['hw']['tracker'].calibrate()
-                # startrecording()?
-                    
-                #!!# calibrate
+            cfg['hw']['win'].flip()
+
+            if k and 'q' in k:
+                respFile.write("Run manually ended at " + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + "!")
+                return(0)
+
+            if k and 'space' in k:
+                response = 'abort'
+
+            if k and 'r' in k:
+                response = 'abort'
+                recalibrate = True
+
+            if k and k[0] in ['left','right']:
+                response = 1 if k[0] == 'left' else 2
+            
                 
-                fixation.draw()
-                cfg['hw']['win'].flip()
-                k = event.waitKeys()
-                if k[0] in ['q']:
-                    respFile.write("Run manually ended at " + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + "!")
-                    break
+        fixation.ori -= 45
+        
+        if abort:
+            position[which_stair] = position[which_stair] + [pos] # what does this do?
+            increment = False
+            resp        = 'abort'
+            targ_chosen = 'abort'
+            reversal    = 'abort'
+            
+        # else:
+        
+        #     ## dealing with auto-aborted trials
+        
+        #     # auto recalibrate if no initial fixation
+        #     if recalibrate:
+        #         # recalibrate = False
+        #         # visual.TextStim(win,'Calibration...', color = 'black', units = 'deg', pos = (0,-2)).draw()
+        #         # fixation.draw()
+        #         # win.flip()
+        #         # k = event.waitKeys()
+        #         # if k[0] in ['q']:
+        #         #     respFile.write("Run manually ended at " + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + "!")
+        #         #     break
+
+        #         # stoprecording()?
+        #         cfg['hw']['tracker'].calibrate()
+        #         # startrecording()?
+                    
+        #         #!!# calibrate
+                
+        #         fixation.draw()
+        #         cfg['hw']['win'].flip()
+        #         k = event.waitKeys()
+        #         if k[0] in ['q']:
+        #             respFile.write("Run manually ended at " + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + "!")
+        #             break
             
             # changing fixation to signify gaze out, restart with 'up' possibily of break and manual recalibration 'r' 
             # this just makes the experiment longer and more frustrating?
-            else:
-                cfg['hw']['fusion']['hi'].draw()
-                cfg['hw']['fusion']['lo'].draw()
-                visual.TextStim(cfg['hw']['win'], '#', height = letter_height, color = 'black').draw()
-                cfg['hw']['win'].flip()
-                k = ['wait']
-                while k[0] not in ['q', 'up', 'r']:
-                    k = event.waitKeys()
-                if k[0] in ['q']:
-                    respFile.write("Run manually ended at " + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + "!")
-                    break
+            # else:
+            #     cfg['hw']['fusion']['hi'].draw()
+            #     cfg['hw']['fusion']['lo'].draw()
+            #     visual.TextStim(cfg['hw']['win'], '#', height = letter_height, color = 'black').draw()
+            #     cfg['hw']['win'].flip()
+            #     k = ['wait']
+            #     while k[0] not in ['q', 'up', 'r']:
+            #         k = event.waitKeys()
+                # if k[0] in ['q']:
+                #     respFile.write("Run manually ended at " + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + "!")
+                #     break
         
                 # manual recalibrate
                 if k[0] in ['r']:
@@ -512,6 +472,8 @@ def doDistanceTask(ID=None, side=None):
             trial_stair[which_stair] = trial_stair[which_stair] + 1
             stairs_ongoing[which_stair] = revs[which_stair] <= nRevs or trial_stair[which_stair] < nTrials
 
+        
+
         ## print trial
         print(resp,
             pos[0],
@@ -521,7 +483,7 @@ def doDistanceTask(ID=None, side=None):
             which_first,
             targ_chosen,
             reversal,
-            foil_type[which_stair],
+            # foil_type[which_stair],
             eye[which_stair],
             gaze_out,
             which_stair)
@@ -533,7 +495,7 @@ def doDistanceTask(ID=None, side=None):
                                         which_first,
                                         targ_chosen,
                                         reversal,
-                                        foil_type[which_stair],
+                                        # foil_type[which_stair],
                                         eye[which_stair],
                                         gaze_out,
                                         which_stair,
