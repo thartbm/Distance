@@ -22,6 +22,10 @@ from glob import glob
 from itertools import compress
 # from fusion_stim import fusionStim
 
+
+from psychopy.hardware import keyboard
+from pyglet.window import key
+
 ######
 #### Initialize experiment
 ######
@@ -63,15 +67,18 @@ def doDistanceTask(ID=None, side=None):
 
     respFile.write(''.join(map(str, ["Start: \t" + datetime.datetime.now().strftime("%Y-%m-%d-%H-%M") + "\n"])))
     # respFile.write("Resp\tTarg_loc\tFoil_loc\tTarg_len\tDifference\tWhich_first\tTarg_chosen\tReversal\tFoil_type\tEye\tGaze_out\tStair\tTrial\n")
-    respFile.write("Resp\tTarg_loc\tFoil_loc\tTarg_len\tDifference\tWhich_first\tTarg_chosen\tReversal\tEye\tGaze_out\tStair\tTrial\n")
+    respFile.write("Resp\tTarg_loc\tFoil_loc\tTarg_len\tDifference\tWhich_first\tTarg_chosen\tReversal\tEye\tStair\tTrial\n")
     print(datetime.datetime.now().strftime("%Y-%m-%d-%H-%M"))
     # print("Resp", "Targ_loc", "Foil_loc", "Targ_len", "Difference", "Which_first", "Targ_chosen", "Reversal", "Foil_type", "Eye", "Gaze_out", "Stair")
-    print("Resp", "Targ_loc", "Foil_loc", "Targ_len", "Difference", "Which_first", "Targ_chosen", "Reversal", "Eye", "Gaze_out", "Stair")
+    print("Resp", "Targ_loc", "Foil_loc", "Targ_len", "Difference", "Which_first", "Targ_chosen", "Reversal", "Eye", "Stair")
 
     ## blindspot parameters
     bs_file = open(glob("../data/mapping/" + ID + "_" + side + "_blindspot*.txt")[-1],'r')
+    print(glob("../data/mapping/" + ID + "_" + side + "_blindspot*.txt")[-1])
     bs_param = bs_file.read().replace('\t','\n').split('\n')
     bs_file.close()
+
+    print(bs_param)
 
     # spot is not sided
     spot_cart = eval(bs_param[1])
@@ -133,9 +140,10 @@ def doDistanceTask(ID=None, side=None):
     ## instructions
     visual.TextStim(cfg['hw']['win'],'Troughout the experiment you will fixate at a white cross that will be located at the right hand side of the screen.   \
     It is important that you fixate on this cross at all times.\n\n You will be presented with pairs of dots. You will have to indicate which dots were closer together.\n\n Left arrow = first pair of dots were closer together.\
-    \n\n Right arrow = second pair of dots were closer together.\n\n\n Press the space bar to start the experiment.', height = letter_height,wrapWidth=1200, color = 'black').draw()
+    \n\n Right arrow = second pair of dots were closer together.\n\n\n Press the space bar to start the experiment.',wrapWidth=1200, color = 'black').draw()
     cfg['hw']['win'].flip()
-    k = ['wait']
+
+    k = event.waitKeys()
     while k[0] not in ['q','space']:
         k = event.waitKeys()
     if k[0] in ['q']:
@@ -205,6 +213,12 @@ def doDistanceTask(ID=None, side=None):
     cfg['hw']['tracker'].calibrate()
     cfg['hw']['tracker'].startcollecting()
 
+    x = 1
+    filename = 'dist_' + side + '_' + ID.lower() + '_'
+    while (filename + str(x)) in os.listdir(eyetrackfolder): x += 1
+    eyetrackingfile = filename + str(x)
+    cfg['hw']['tracker'].openfile(eyetrackingfile)
+
 
     fixation.draw()
     cfg['hw']['win'].flip()
@@ -244,18 +258,6 @@ def doDistanceTask(ID=None, side=None):
     recalibrate = False
 
     while any(stairs_ongoing):
-
-        # do a trial
-        fixating = False
-        while not fixating:
-            if cfg['hw']['tracker'].gazeInFixationWindow():
-                fixating = True
-            else:
-                # too harsh?
-                cfg['hw']['tracker'].calibrate()
-        
-        # good to go:
-        increment = True
 
         ## choose staircase
         which_stair = random.choice(list(compress([x for x in range(len(stairs_ongoing))], stairs_ongoing)))
@@ -315,9 +317,16 @@ def doDistanceTask(ID=None, side=None):
         # record trial number:
         cfg['hw']['tracker'].comment('start trial %d'%(trial))
 
+        
+        # good to go:
+        increment = True
+
         # pre-trial fixation
-        cfg['hw']['tracker'].waitForFixation()
-        cfg['hw']['tracker'].comment('fixating')
+        if cfg['hw']['tracker'].waitForFixation():
+            cfg['hw']['tracker'].comment('fixating') # everything seems good?
+        else:
+            pass # redo calibration? let's not for now
+
 
         # new random patterns:
         cfg['hw']['fusion']['hi'].resetProperties()
@@ -326,6 +335,8 @@ def doDistanceTask(ID=None, side=None):
         fixation.ori = 0
 
         comments = ['pair 2 off', 'pair 1 off', 'pair 2 on', 'pair 1 on']
+
+        time.sleep(0.75) # how much time in between trials?
 
         # now we start the clock:
         trial_clock.reset()
@@ -356,7 +367,6 @@ def doDistanceTask(ID=None, side=None):
                 k = event.getKeys(['q','r','space'])
                 if not cfg['hw']['tracker'].gazeInFixationWindow():
                     response    = 'abort-gaze'
-                    # recalibrate = True   # maybe only if this happens a few times in a row? or triggered by experimenter...
             else:
                 if len(comments) == 1:
                     cfg['hw']['tracker'].comment(comments.pop())
@@ -383,8 +393,10 @@ def doDistanceTask(ID=None, side=None):
             if k and k[0] in ['left','right']:
                 response = 1 if k[0] == 'left' else 2
                 cfg['hw']['tracker'].comment('response: %d'%(response))
-            
-                
+
+        # prevent stuck-key syndrome    
+        event.clearEvents(eventType='keyboard')
+
         fixation.ori = 0
         
         if response in ['abort-space', 'abort-gaze', 'abort-recalibrate']:
@@ -471,6 +483,7 @@ def doDistanceTask(ID=None, side=None):
     k = event.waitKeys()
 
     # need to cleanly shutdown the systems:
+    cfg['hw']['tracker'].closefile()
     cfg['hw']['tracker'].shutdown()
     cfg['hw']['win'].close()
     core.quit()
